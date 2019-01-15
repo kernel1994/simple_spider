@@ -16,6 +16,7 @@ import requests
 import pandas as pd
 
 import utils
+import downloader
 
 
 def grab_comment(csv_file):
@@ -91,4 +92,4 @@ if __name__ == '__main__':
     # download image via crawled information
     weibo_df = pd.read_csv(csv_file)
     urls = weibo_df[weibo_df['pic_url'] != 'None']['pic_url']
-    utils.download_image(img_dir, urls)
+    downloader.task_many(img_dir, urls, n_workers=16)
