@@ -10,6 +10,7 @@ https://m.weibo.cn/api/container/getIndex?containerid={oid}&type=uid&value={uid}
 user index
 https://m.weibo.cn/api/container/getIndex?type=uid&value={usr_id}
 """
+import csv
 import time
 import pathlib
 import requests
@@ -38,7 +39,15 @@ def grab_comment(csv_file):
     # get the max number of pages
     n_max_page = rj['data']['max']
 
-    with csv_file.open('a', encoding='utf-8') as f:
+    csv_header = ['review_id', 'user_id', 'pic_pid', 'pic_url',
+                  'user_profile_url', 'created_at', 'like_counts',
+                  'user_image', 'user_name', 'comment']
+
+    with csv_file.open('w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=csv_header)
+
+        writer.writeheader()
+
         for i in range(1, n_max_page):
             single_weibo_url = single_weibo_url_tmp.format(id=single_weibo_id, page=i)
 
@@ -63,10 +72,9 @@ def grab_comment(csv_file):
                 pic_pid = d.get('pic', {}).get('pid', None)
                 pic_url = d.get('pic', {}).get('large', {}).get('url', None)
 
-                f.write('{},{},{},{},{},{},{},{},{},{}\n'.format(
-                    review_id,user_id,pic_pid,pic_url,user_profile_url,
-                    created_at,like_counts,user_image,user_name,comment)
-                )
+                writer.writerow({'review_id': review_id, 'user_id': user_id, 'pic_pid': pic_pid, 'pic_url': pic_url,
+                                 'user_profile_url': user_profile_url, 'created_at': created_at, 'like_counts': like_counts,
+                                 'user_image': user_image, 'user_name': user_name, 'comment': comment})
 
             time.sleep(1)
 
@@ -74,17 +82,14 @@ def grab_comment(csv_file):
 if __name__ == '__main__':
     override = True
 
+    # where to save downloaded images and csv file
+    save_path = pathlib.Path('save')
     # where to save crawled csv file
-    csv_file = pathlib.Path('weibo.csv')
-    # where to save downloaded images
-    img_dir = pathlib.Path('images')
+    csv_file = save_path.joinpath('weibo.csv')
     if override:
-        with csv_file.open('w', encoding='utf-8') as f:
-            f.write('review_id,user_id,pic_pid,pic_url,user_profile_url,created_at,like_counts,user_image,user_name,comment\n')
-
-        utils.create_new_dir(img_dir)
+        utils.create_new_dir(save_path)
     else:
-        utils.create_dir(img_dir)
+        utils.create_dir(save_path)
 
     # Crawl comments of one post
     grab_comment(csv_file)
@@ -92,4 +97,4 @@ if __name__ == '__main__':
     # download image via crawled information
     weibo_df = pd.read_csv(csv_file)
     urls = weibo_df[weibo_df['pic_url'] != 'None']['pic_url']
-    downloader.task_many(img_dir, urls, n_workers=16)
+    downloader.task_many(save_path, urls, n_workers=16)
