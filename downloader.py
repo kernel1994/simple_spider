@@ -1,19 +1,20 @@
+import shutil
 import pathlib
 import requests
-import numpy as np
-from PIL import Image
-from io import BytesIO
 from concurrent import futures
+
+import utils
 
 
 def downloader(save_path, url):
     image_name = url.split('/')[-1].split('?')[0]
+    image_path = save_path.joinpath(image_name)
 
     print('downloading {}'.format(image_name))
 
-    r = requests.get(url)
-    image = Image.open(BytesIO(r.content))
-    image.save(save_path.joinpath(image_name))
+    r = requests.get(url, stream=True)
+    with image_path.open('wb') as o:
+        shutil.copyfileobj(r.raw, o)
 
 
 def task_one(save_path, urls):
@@ -31,7 +32,7 @@ def task_many(save_path, urls, n_workers):
     workers = min(n_workers, len(urls))
 
     # divide all urls into n_workers group for every thread
-    url_group = np.array_split(urls, workers)
+    url_group = utils.array_split(urls, workers)
 
     with futures.ThreadPoolExecutor(max_workers=workers) as executor:
         for i in range(workers):

@@ -96,5 +96,5 @@ if __name__ == '__main__':
 
     # download image via crawled information
     weibo_df = pd.read_csv(csv_file)
-    urls = weibo_df[weibo_df['pic_url'] != 'None']['pic_url']
+    urls = weibo_df[weibo_df['pic_url'].notnull()]['pic_url']
     downloader.task_many(save_path, urls, n_workers=16)
