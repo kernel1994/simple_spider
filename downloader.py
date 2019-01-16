@@ -1,6 +1,7 @@
 import shutil
 import pathlib
 import requests
+from itertools import repeat
 from concurrent import futures
 
 import utils
@@ -17,11 +18,6 @@ def downloader(save_path, url):
         shutil.copyfileobj(r.raw, o)
 
 
-def task_one(save_path, urls):
-    for url in urls:
-        downloader(save_path, url)
-
-
 def task_many(save_path, urls, n_workers):
     """
     download images from urls concurrently.
@@ -31,9 +27,5 @@ def task_many(save_path, urls, n_workers):
     """
     workers = min(n_workers, len(urls))
 
-    # divide all urls into n_workers group for every thread
-    url_group = utils.array_split(urls, workers)
-
     with futures.ThreadPoolExecutor(max_workers=workers) as executor:
-        for i in range(workers):
-            executor.submit(task_one, save_path, url_group[i])
+        executor.map(downloader, repeat(save_path), urls)
