@@ -21,11 +21,11 @@ def downloader(save_path, url):
 def task_many(save_path, urls, n_workers):
     """
     download images from urls concurrently.
-    :param dir: pathlib.Path: where to save images
-    :param image_urls: iterable: image urls
+    :param save_path: pathlib.Path: where to save images
+    :param urls: iterable: image urls
     :param n_workers: int: number of threads
     """
-    workers = min(n_workers, len(urls))
+    workers = max(min(n_workers, len(urls)), 1)
 
     with futures.ThreadPoolExecutor(max_workers=workers) as executor:
         executor.map(downloader, repeat(save_path), urls)
