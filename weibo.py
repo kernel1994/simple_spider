@@ -22,13 +22,17 @@ class WeiboSpider:
         else:
             utils.create_dir(self.main_path)
 
-        self.image_path = self.main_path.joinpath(config.image_path)
-        utils.create_dir(self.image_path)
-        self.csv_file = self.main_path.joinpath(config.csv_path)
-        self.log_file = self.main_path.joinpath(config.log_path)
-        self.stop_file = self.main_path.joinpath(config.stop_path)
+        self.images_path = self.main_path.joinpath(config.images_path)
+        if override:
+            utils.create_new_dir(self.images_path)
+        else:
+            utils.create_dir(self.images_path)
 
-        logging.basicConfig(level=logging.DEBUG,
+        self.csv_file = self.main_path.joinpath(config.csv_file)
+        self.log_file = self.main_path.joinpath(config.log_file)
+        self.stop_file = self.main_path.joinpath(config.stop_file)
+
+        logging.basicConfig(level=logging.INFO,
                             filename=self.log_file,
                             datefmt='%Y-%m-%d %H:%M:%S',
                             format='%(asctime)s    %(levelname)s    %(filename)s[line:%(lineno)d]    %(message)s')
@@ -37,7 +41,6 @@ class WeiboSpider:
         if self.reentry:
             with self.stop_file.open('r') as sfr:
                 max_id = int(sfr.readline().split('=')[-1])
-                print(max_id)
         else:
             # first shoot to get the first max_id
             first_hotflow_url = self.config.init_hotflow_tmp.format(mid=mid)
@@ -61,7 +64,8 @@ class WeiboSpider:
                     # initial max_id_type is 0
                     max_id_type = 0
                     next_hotflow_url = wc.next_hotflow_tmp.format(mid=mid, max_id=max_id, max_id_type=max_id_type)
-                    logging.info('Try get {}'.format(next_hotflow_url))
+
+                    self._logging(logging.INFO, 'Try get {}'.format(next_hotflow_url), verbose=False)
                     rj = requests.get(next_hotflow_url, headers=self.request_headers).json()
 
                     # change max_id_type if get nothing back, and re-access
@@ -69,115 +73,82 @@ class WeiboSpider:
                     if not rj['ok']:
                         max_id_type = 1
                         next_hotflow_url = wc.next_hotflow_tmp.format(mid=mid, max_id=max_id, max_id_type=max_id_type)
-                        logging.warning('Change max_id_type, re-try {}'.format(next_hotflow_url))
+
+                        self._logging(logging.WARNING, 'Change max_id_type, re-try {}'.format(next_hotflow_url), verbose=False)
                         rj = requests.get(next_hotflow_url, headers=self.request_headers).json()
 
                     msg = 'max_id {} -> {}'.format(max_id, 'ok' if rj['ok'] else 'error')
-                    print(msg)
-                    logging.info(msg)
+                    self._logging(logging.INFO, msg)
 
                     # get next max_id
                     max_id = rj['data']['max_id']
 
-                    data = rj['data']['data']
-
-                    for d in data:
-                        # comment
-                        review_id = d['id']
-                        created_at = d['created_at']
-                        like_counts = d['like_count']
-                        comment = d['text']
-
-                        # user
-                        user_id = d['user']['id']
-                        user_name = d['user']['screen_name']
-                        user_image = d['user']['profile_image_url']
-                        user_profile_url = d['user']['profile_url']
-                        user_description = d['user']['description']
-                        user_avatar_hd = d['user']['avatar_hd']
-
-                        # picture
-                        pic_pid = d.get('pic', {}).get('pid', None)
-                        pic_url = d.get('pic', {}).get('large', {}).get('url', None)
-
-                        writer.writerow({'review_id': review_id, 'user_id': user_id, 'pic_pid': pic_pid, 'pic_url': pic_url,
-                                         'user_profile_url': user_profile_url, 'created_at': created_at,
-                                         'like_counts': like_counts,
-                                         'user_image': user_image, 'user_avatar_hd': user_avatar_hd, 'user_name': user_name,
-                                         'user_description': user_description, 'comment': comment})
+                    # parse data item and write csv
+                    for data_item in rj['data']['data']:
+                        writer.writerow(self._parse_data_item(data_item))
 
                     time.sleep(self.config.sleep_per_step)
                 except Exception as e:
                     if tris >= self.config.try_times:
                         msg = 'Exhausted. Try {} times. End in {}. With max_id={}'.format(self.config.try_times,
                                                                                           next_hotflow_url, max_id)
-                        print(msg)
-                        with self.stop_file.open('w', encoding='utf-8') as sfw:
-                            sfw.write(msg)
+                        self._file_writing(self.stop_file, msg)
+
                         break
 
                     tris += 1
+
                     msg = '{} error happened! The {} time(s) try. With max_id={}'.format(e, tris, max_id)
-                    print(msg)
-                    logging.warning(msg)
+                    self._logging(logging.WARNING, msg)
+
                     time.sleep(self.config.sleep_baned)
 
     def download_pic(self):
         # download image via crawled information
         weibo_df = pd.read_csv(self.csv_file)
         urls = weibo_df[weibo_df['pic_url'].notnull()]['pic_url']
-        downloader.task_many(self.image_path, urls, n_workers=self.config.n_download_workers)
+        urls = pd.unique(urls)
+        downloader.task_many(urls, self.images_path, n_workers=self.config.n_download_workers)
 
-    def grab_comment(self, post_id):
-        # NOTE: DEPRECATED: this api can only crawl 100 pages, First consider using grab_comment_hotflow()
-        # single_post_id find in:
-        # m.weibo.cn/status/{post_id}
-        # m.weibo.cn/statuses/show?id={post_id}
+    def _parse_data_item(self, item):
+        """
+        parse json data item.
+        :param item: json data item
+        :return: dict: parsed data dict
+        """
+        # comment
+        review_id = item['id']
+        created_at = item['created_at']
+        like_counts = item['like_count']
+        comment = item['text']
 
-        # first shoot to get page information
-        single_weibo_url = self.config.comments_tmp.format(id=post_id, page=1)
-        # response JSON data
-        rj = requests.get(single_weibo_url, headers=self.request_headers).json()
-        # get the max number of pages
-        n_max_page = rj['data']['max']
+        # user
+        user_id = item['user']['id']
+        user_name = item['user']['screen_name']
+        user_image = item['user']['profile_image_url']
+        user_profile_url = item['user']['profile_url']
+        user_description = item['user']['description']
+        user_avatar_hd = item['user']['avatar_hd']
 
-        csv_header = ['review_id', 'user_id', 'pic_pid', 'pic_url',
-                      'user_profile_url', 'created_at', 'like_counts',
-                      'user_image', 'user_name', 'comment']
+        # picture
+        pic_pid = item.get('pic', {}).get('pid', None)
+        pic_url = item.get('pic', {}).get('large', {}).get('url', None)
 
-        with self.csv_file.open('a', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=csv_header)
-            writer.writeheader()
+        return {'review_id': review_id, 'user_id': user_id, 'pic_pid': pic_pid, 'pic_url': pic_url,
+                'user_profile_url': user_profile_url, 'created_at': created_at, 'like_counts': like_counts,
+                'user_image': user_image, 'user_avatar_hd': user_avatar_hd, 'user_name': user_name,
+                'user_description': user_description, 'comment': comment}
 
-            for i in range(1, n_max_page):
-                single_weibo_url = self.config.comments_tmp.format(id=post_id, page=i)
+    def _logging(self, level, msg, verbose=True):
+        if verbose:
+            print(msg)
+        logging.log(level, msg)
 
-                rj = requests.get(single_weibo_url, headers=self.request_headers).json()
-                print('page {} -> {}'.format(i, rj['msg']))
-                data = rj['data']['data']
-
-                for d in data:
-                    # comment
-                    review_id = d['id']
-                    created_at = d['created_at']
-                    like_counts = d['like_counts']
-                    comment = d['text']
-
-                    # user
-                    user_id = d['user']['id']
-                    user_name = d['user']['screen_name']
-                    user_image = d['user']['profile_image_url']
-                    user_profile_url = d['user']['profile_url']
-
-                    # picture
-                    pic_pid = d.get('pic', {}).get('pid', None)
-                    pic_url = d.get('pic', {}).get('large', {}).get('url', None)
-
-                    writer.writerow({'review_id': review_id, 'user_id': user_id, 'pic_pid': pic_pid, 'pic_url': pic_url,
-                                     'user_profile_url': user_profile_url, 'created_at': created_at, 'like_counts': like_counts,
-                                     'user_image': user_image, 'user_name': user_name, 'comment': comment})
-
-                time.sleep(self.config.sleep_per_step)
+    def _file_writing(self, file_path: pathlib.Path, msg: str, mode='w', verbose=True):
+        if verbose:
+            print(msg)
+        with file_path.open(mode, encoding='utf-8') as f:
+            f.write(msg)
 
 
 if __name__ == '__main__':

@@ -20,7 +20,7 @@ headers = {
 # sleep seconds of every request
 sleep_per_step = 1
 # sleep seconds when baned
-sleep_baned = 10
+sleep_baned = 5 * 60
 
 # number of downloader workers
 n_download_workers = 32
@@ -31,13 +31,13 @@ try_times = 5
 # working path
 main_path = 'weibo_save/'
 # downloaded images path
-image_path = 'images/'
-# csv file path
-csv_path = 'weibo.csv'
-# log file path
-log_path = 'weibo.log'
-# pause log file path
-stop_path = 'stop.log'
+images_path = 'images/'
+# csv file name
+csv_file = 'weibo.csv'
+# log file name
+log_file = 'weibo.log'
+# pause log file name
+stop_file = 'stop.log'
 
 # weibo hotflow mid need to be crawled.
 # Find it use Chrome Dev Tool m.weibo.cn/comments/hotflow?id={mid}&mid={mid}

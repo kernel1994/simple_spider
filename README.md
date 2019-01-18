@@ -5,7 +5,12 @@ weibo.py crawl weibo and download images in on comment.
 
 ## Weibo API Templates
 
-- single post with comments
+- comments hotflow
+    - https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id_type={0|1}
+    - https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id={max_id}&max_id_type={0|1}
+
+- single post with comments  # DEPRECATED
+    - NOTE: this api can only crawl 100 pages, First consider using hotflow
     - https://m.weibo.cn/api/comments/show?id={id}&page={page}
 
 - posts for a user
@@ -13,10 +18,6 @@ weibo.py crawl weibo and download images in on comment.
 
 - user index
     - https://m.weibo.cn/api/container/getIndex?type=uid&value={usr_id}
-
-- comments hotflow
-    - https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id_type=0
-    - https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id={max_id}&max_id_type=0
 
 ## How to run
 Set `mid` and paste `cookie` and `user_agent` into `weibo_config.py`. And adapt other configurations.
