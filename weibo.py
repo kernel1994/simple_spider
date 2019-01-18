@@ -38,10 +38,25 @@ class WeiboSpider:
                             format='%(asctime)s    %(levelname)s    %(filename)s[line:%(lineno)d]    %(message)s')
 
     def grab_comment_hotflow(self, mid=0):
+        """
+        Grab comments of one weibo order by hot.
+        NOTE: This can only get the first level comments
+        :param mid: int, which post want to grab
+        :return:
+        """
+        csv_header = ['review_id', 'user_id', 'pic_pid', 'pic_url',
+                      'user_profile_url', 'created_at', 'like_counts',
+                      'user_image', 'user_avatar_hd', 'user_name',
+                      'user_description', 'comment']
+        f_csv = self.csv_file.open('a', newline='', encoding='utf-8')
+        writer = csv.DictWriter(f_csv, fieldnames=csv_header)
+
         if self.reentry:
             with self.stop_file.open('r') as sfr:
                 max_id = int(sfr.readline().split('=')[-1])
         else:
+            writer.writeheader()
+
             # first shoot to get the first max_id
             first_hotflow_url = self.config.init_hotflow_tmp.format(mid=mid)
             # response JSON data
@@ -49,59 +64,55 @@ class WeiboSpider:
             # get the max_id to access next page
             max_id = rj['data']['max_id']
 
-        csv_header = ['review_id', 'user_id', 'pic_pid', 'pic_url',
-                      'user_profile_url', 'created_at', 'like_counts',
-                      'user_image', 'user_avatar_hd', 'user_name',
-                      'user_description', 'comment']
+            # the first url (without max_id) also carry data
+            # parse data item and write csv
+            for data_item in rj['data']['data']:
+                writer.writerow(self._parse_data_item(data_item))
 
-        with self.csv_file.open('a', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=csv_header)
-            writer.writeheader()
+        tris = 0
+        while max_id:
+            try:
+                # initial max_id_type is 0
+                max_id_type = 0
+                next_hotflow_url = wc.next_hotflow_tmp.format(mid=mid, max_id=max_id, max_id_type=max_id_type)
+                self._logging(logging.INFO, 'Try get {}'.format(next_hotflow_url), verbose=False)
+                rj = requests.get(next_hotflow_url, headers=self.request_headers).json()
 
-            tris = 0
-            while max_id:
-                try:
-                    # initial max_id_type is 0
-                    max_id_type = 0
+                # change max_id_type if get nothing back, and re-access
+                # I do not know the rule of max_id_type is 1 or 0
+                if not rj['ok']:
+                    max_id_type = 1
                     next_hotflow_url = wc.next_hotflow_tmp.format(mid=mid, max_id=max_id, max_id_type=max_id_type)
-
-                    self._logging(logging.INFO, 'Try get {}'.format(next_hotflow_url), verbose=False)
+                    self._logging(logging.WARNING, 'Change max_id_type, re-try {}'.format(next_hotflow_url), verbose=False)
                     rj = requests.get(next_hotflow_url, headers=self.request_headers).json()
 
-                    # change max_id_type if get nothing back, and re-access
-                    # I do not know the rule of max_id_type is 1 or 0
-                    if not rj['ok']:
-                        max_id_type = 1
-                        next_hotflow_url = wc.next_hotflow_tmp.format(mid=mid, max_id=max_id, max_id_type=max_id_type)
+                msg = 'max_id {} -> {}'.format(max_id, 'ok' if rj['ok'] else 'error')
+                self._logging(logging.INFO, msg)
 
-                        self._logging(logging.WARNING, 'Change max_id_type, re-try {}'.format(next_hotflow_url), verbose=False)
-                        rj = requests.get(next_hotflow_url, headers=self.request_headers).json()
+                # get next max_id
+                max_id = rj['data']['max_id']
 
-                    msg = 'max_id {} -> {}'.format(max_id, 'ok' if rj['ok'] else 'error')
-                    self._logging(logging.INFO, msg)
+                # parse data item and write csv
+                for data_item in rj['data']['data']:
+                    writer.writerow(self._parse_data_item(data_item))
 
-                    # get next max_id
-                    max_id = rj['data']['max_id']
+                time.sleep(self.config.sleep_per_step)
+            except Exception as e:
+                if tris >= self.config.try_times:
+                    msg = 'Exhausted. Try {} times. End in {}. With max_id={}'.format(self.config.try_times,
+                                                                                      next_hotflow_url, max_id)
+                    self._file_writing(self.stop_file, msg)
 
-                    # parse data item and write csv
-                    for data_item in rj['data']['data']:
-                        writer.writerow(self._parse_data_item(data_item))
+                    f_csv.close()
 
-                    time.sleep(self.config.sleep_per_step)
-                except Exception as e:
-                    if tris >= self.config.try_times:
-                        msg = 'Exhausted. Try {} times. End in {}. With max_id={}'.format(self.config.try_times,
-                                                                                          next_hotflow_url, max_id)
-                        self._file_writing(self.stop_file, msg)
+                    break
 
-                        break
+                tris += 1
 
-                    tris += 1
+                msg = '{} error happened! The {} time(s) try. With max_id={}'.format(e, tris, max_id)
+                self._logging(logging.WARNING, msg)
 
-                    msg = '{} error happened! The {} time(s) try. With max_id={}'.format(e, tris, max_id)
-                    self._logging(logging.WARNING, msg)
-
-                    time.sleep(self.config.sleep_baned)
+                time.sleep(self.config.sleep_baned)
 
     def download_pic(self):
         # download image via crawled information

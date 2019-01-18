@@ -1,13 +1,17 @@
 # simple_spider
 Some simple python spiders for learning.
 
-weibo.py crawl weibo and download images in on comment.
+weibo.py crawl weibo comments and download images.
 
 ## Weibo API Templates
 
 - comments hotflow
-    - https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id_type={0|1}
-    - https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id={max_id}&max_id_type={0|1}
+    - first level
+        - https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id_type={0|1}  # init url
+        - https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id={max_id}&max_id_type={0|1}  # next page url
+    - second level
+        - https://m.weibo.cn/comments/hotFlowChild?cid={cid}&max_id=0&max_id_type={0|1}  # init url
+        - https://m.weibo.cn/comments/hotFlowChild?cid={cid}&max_id={max_id}&max_id_type={0|1}  # next page url
 
 - single post with comments  # DEPRECATED
     - NOTE: this api can only crawl 100 pages, First consider using hotflow
