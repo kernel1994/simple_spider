@@ -37,7 +37,7 @@ csv_file = 'weibo.csv'
 # log file name
 log_file = 'weibo.log'
 # pause log file name
-stop_file = 'stop.log'
+stop_file = 'stop.csv'
 
 # weibo hotflow mid need to be crawled.
 # Find it use Chrome Dev Tool m.weibo.cn/comments/hotflow?id={mid}&mid={mid}
