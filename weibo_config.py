@@ -1,8 +1,10 @@
 # API url templates
 # init hotflow url template. Used to get the first max_id
 init_hotflow_tmp = 'https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id_type=0'
+init_hotflowchild_tmp = 'https://m.weibo.cn/comments/hotFlowChild?cid={cid}&max_id=0&max_id_type=0'
 # next hotflow url template, use max_id to request next data
 next_hotflow_tmp = 'https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id={max_id}&max_id_type={max_id_type}'
+next_hotflowchild_tmp = 'https://m.weibo.cn/comments/hotFlowChild?cid={cid}&max_id={max_id}&max_id_type={max_id_type}'
 # comments url of single post. NOTE: this API can only access 100 pages
 comments_tmp = 'https://m.weibo.cn/api/comments/show?id={id}&page={page}'
 
