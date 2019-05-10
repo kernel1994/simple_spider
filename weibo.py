@@ -32,6 +32,7 @@ class WeiboSpider:
         self.log_file = self.main_path.joinpath(config.log_file)
         self.stop_file = self.main_path.joinpath(config.stop_file)
 
+        # init logging config
         logging.basicConfig(level=logging.INFO,
                             filename=self.log_file,
                             datefmt='%Y-%m-%d %H:%M:%S',
@@ -52,8 +53,9 @@ class WeiboSpider:
         writer = csv.DictWriter(f_csv, fieldnames=csv_header)
 
         if self.reentry:
-            with self.stop_file.open('r') as sfr:
-                max_id = int(sfr.readline().split('=')[-1])
+            row = utils.csv_reading(self.stop_file)[0]
+            max_id = row['max_id']
+            max_id_type = row['max_id_type']
         else:
             writer.writeheader()
 
@@ -63,6 +65,7 @@ class WeiboSpider:
             rj = requests.get(first_hotflow_url, headers=self.request_headers).json()
             # get the max_id to access next page
             max_id = rj['data']['max_id']
+            max_id_type = rj['data']['max_id_type']
 
             # the first url (without max_id) also carry data
             # parse data item and write csv
@@ -72,45 +75,41 @@ class WeiboSpider:
         tris = 0
         while max_id:
             try:
-                # initial max_id_type is 0
-                max_id_type = 0
                 next_hotflow_url = wc.next_hotflow_tmp.format(mid=mid, max_id=max_id, max_id_type=max_id_type)
-                self._logging(logging.INFO, 'Try get {}'.format(next_hotflow_url), verbose=False)
+                utils.msg_logging(logging.INFO, 'Try get {}'.format(next_hotflow_url), verbose=False)
                 rj = requests.get(next_hotflow_url, headers=self.request_headers).json()
 
-                # change max_id_type if get nothing back, and re-access
-                # I do not know the rule of max_id_type is 1 or 0
-                if not rj['ok']:
-                    max_id_type = 1
-                    next_hotflow_url = wc.next_hotflow_tmp.format(mid=mid, max_id=max_id, max_id_type=max_id_type)
-                    self._logging(logging.WARNING, 'Change max_id_type, re-try {}'.format(next_hotflow_url), verbose=False)
-                    rj = requests.get(next_hotflow_url, headers=self.request_headers).json()
-
                 msg = 'max_id {} -> {}'.format(max_id, 'ok' if rj['ok'] else 'error')
-                self._logging(logging.INFO, msg)
+                utils.msg_logging(logging.INFO, msg)
 
                 # get next max_id
                 max_id = rj['data']['max_id']
+                # get next max_id_type
+                max_id_type = rj['data']['max_id_type']
 
                 # parse data item and write csv
                 for data_item in rj['data']['data']:
                     writer.writerow(self._parse_data_item(data_item))
 
                 time.sleep(self.config.sleep_per_step)
+
+                # reset tries to 0 after request successfully
+                tris = 0
             except Exception as e:
                 if tris >= self.config.try_times:
                     msg = 'Exhausted. Try {} times. End in {}. With max_id={}'.format(self.config.try_times,
                                                                                       next_hotflow_url, max_id)
-                    self._file_writing(self.stop_file, msg)
+                    utils.msg_logging(logging.ERROR, msg)
+                    utils.csv_writing(self.stop_file, header=['max_id', 'max_id_type'],
+                                      rows=[{'max_id': max_id, 'max_id_type': max_id_type}])
 
                     f_csv.close()
-
                     break
 
                 tris += 1
 
-                msg = '{} error happened! The {} time(s) try. With max_id={}'.format(e, tris, max_id)
-                self._logging(logging.WARNING, msg)
+                msg = '{} error happened! The {} time(s) try. Sleep a while.'.format(e, tris)
+                utils.msg_logging(logging.WARNING, msg)
 
                 time.sleep(self.config.sleep_baned)
 
@@ -150,21 +149,10 @@ class WeiboSpider:
                 'user_image': user_image, 'user_avatar_hd': user_avatar_hd, 'user_name': user_name,
                 'user_description': user_description, 'comment': comment}
 
-    def _logging(self, level, msg, verbose=True):
-        if verbose:
-            print(msg)
-        logging.log(level, msg)
-
-    def _file_writing(self, file_path: pathlib.Path, msg: str, mode='w', verbose=True):
-        if verbose:
-            print(msg)
-        with file_path.open(mode, encoding='utf-8') as f:
-            f.write(msg)
-
 
 if __name__ == '__main__':
     headers = wc.headers
 
-    weibo_spider = WeiboSpider(wc, headers, reentry=False, override=False)
+    weibo_spider = WeiboSpider(wc, headers, reentry=False, override=True)
     weibo_spider.grab_comment_hotflow(wc.mid)
     weibo_spider.download_pic()

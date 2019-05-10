@@ -4,7 +4,6 @@ Some simple python spiders for learning.
 weibo.py crawl weibo comments and download images.
 
 ## Weibo API Templates
-
 - comments hotflow
     - first level
         - https://m.weibo.cn/comments/hotflow?id={mid}&mid={mid}&max_id_type={0|1}  # init url
@@ -28,5 +27,9 @@ Set `mid` and paste `cookie` and `user_agent` into `weibo_config.py`. And adapt 
 
 Then run `python weibo.py`
 
-If you get `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)` error,
-you should login and recopy the cookie, or change account.
+## Exceptions
+- If you get `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)` error. This represent too frequent requests.
+    - You should set longer time to sleep, or change account and recopy the cookie.
+
+- If you get `KeyError: data` error. This represent response 200 and ok, but returned json data are empty.
+    - You can try to refresh weibo page and reentry program.
