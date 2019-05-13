@@ -5,4 +5,4 @@ Get comments for a specific item and save into a excel file. However, if not nec
 The key to solving this problem is to set up headers. If you don't set up headers, nothing you will get and no errors notifacation.
 
 ## TODO
-*[ ] If you have some thing want to implementation you can write it down here.
+* [ ]  If you have some thing want to implementation you can write it down here.
